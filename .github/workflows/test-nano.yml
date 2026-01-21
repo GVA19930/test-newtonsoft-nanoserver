@@ -37,13 +37,14 @@ jobs:
         run: |
           @"
           FROM mcr.microsoft.com/dotnet/sdk:8.0-nanoserver-ltsc2022 AS build
-          COPY . /app
-          WORKDIR /app
-          RUN dotnet publish -c Release -o /out
+          WORKDIR C:/src
+          COPY . .
+          RUN dotnet restore
+          RUN dotnet publish -c Release -o C:/out
           
           FROM mcr.microsoft.com/dotnet/aspnet:8.0-nanoserver-ltsc2022
-          COPY --from=build /out /app
-          WORKDIR /app
+          WORKDIR C:/app
+          COPY --from=build C:/out .
           EXPOSE 8080
           ENV ASPNETCORE_URLS=http://+:8080
           ENTRYPOINT ["dotnet", "NanoTest.dll"]
