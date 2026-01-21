@@ -14,9 +14,9 @@ jobs:
         with:
           dotnet-version: '8.0.x'
           
-      - name: Create test project
+      - name: Create test project with .NET 8
         run: |
-          dotnet new webapi -n NanoTest
+          dotnet new webapi -n NanoTest -f net8.0
           cd NanoTest
           dotnet add package Newtonsoft.Json
           
