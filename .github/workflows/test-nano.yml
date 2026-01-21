@@ -1,0 +1,81 @@
+﻿name: Test Newtonsoft.Json on Nano Server
+
+on: 
+  push:
+  workflow_dispatch:
+
+jobs:
+  test-nano:
+    runs-on: windows-2022
+    
+    steps:
+      - name: Create test project
+        run: |
+          dotnet new webapi -n NanoTest
+          cd NanoTest
+          dotnet add package Newtonsoft.Json
+          
+      - name: Modify Program.cs to use Newtonsoft
+        run: |
+          @"
+          using Newtonsoft.Json;
+          var builder = WebApplication.CreateBuilder(args);
+          var app = builder.Build();
+          app.MapGet("/test", () => {
+              var obj = new { Message = "Newtonsoft works on Nano Server!", Time = DateTime.Now };
+              return JsonConvert.SerializeObject(obj);
+          });
+          app.Run();
+          "@ | Out-File -FilePath NanoTest/Program.cs -Encoding UTF8
+      
+      - name: Create Dockerfile for Nano Server
+        run: |
+          @"
+          FROM mcr.microsoft.com/dotnet/sdk:8.0-nanoserver-ltsc2022 AS build
+          COPY . /app
+          WORKDIR /app
+          RUN dotnet publish -c Release -o /out
+          
+          FROM mcr.microsoft.com/dotnet/aspnet:8.0-nanoserver-ltsc2022
+          COPY --from=build /out /app
+          WORKDIR /app
+          EXPOSE 8080
+          ENV ASPNETCORE_URLS=http://+:8080
+          ENTRYPOINT ["dotnet", "NanoTest.dll"]
+          "@ | Out-File -FilePath NanoTest/Dockerfile -Encoding ASCII
+      
+      - name: Build Docker image on Nano Server
+        run: |
+          cd NanoTest
+          docker build -t nanotest .
+          
+      - name: Run container and test Newtonsoft
+        run: |
+          cd NanoTest
+          docker run -d -p 8080:8080 --name test nanotest
+          Start-Sleep -Seconds 20
+          
+          Write-Host "`n========================================" -ForegroundColor Cyan
+          Write-Host "CONTAINER LOGS:" -ForegroundColor Cyan
+          Write-Host "========================================`n" -ForegroundColor Cyan
+          docker logs test
+          
+          Write-Host "`n========================================" -ForegroundColor Green
+          Write-Host "TESTING NEWTONSOFT.JSON ON NANO SERVER" -ForegroundColor Green
+          Write-Host "========================================`n" -ForegroundColor Green
+          
+          try {
+            $response = Invoke-WebRequest -Uri "http://localhost:8080/test" -UseBasicParsing
+            Write-Host "✅ SUCCESS! Response:" -ForegroundColor Green
+            Write-Host $response.Content -ForegroundColor Cyan
+            Write-Host "`n========================================" -ForegroundColor Green
+            Write-Host "✅ NEWTONSOFT.JSON WORKS ON NANO SERVER!" -ForegroundColor Green
+            Write-Host "========================================" -ForegroundColor Green
+          } catch {
+            Write-Host "❌ FAILED! Error:" -ForegroundColor Red
+            Write-Host $_.Exception.Message -ForegroundColor Red
+            Write-Host "`n========================================" -ForegroundColor Red
+            Write-Host "❌ NEWTONSOFT.JSON DOES NOT WORK ON NANO SERVER" -ForegroundColor Red
+            Write-Host "========================================" -ForegroundColor Red
+            exit 1
+          }
